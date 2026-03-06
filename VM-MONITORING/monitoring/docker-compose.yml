@@ -1,0 +1,42 @@
+services:
+  traefik:
+    image: traefik:v3.6
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.websecure.address=:443
+      - --providers.file.filename=/etc/traefik/dynamic_conf.yml
+    ports:
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ~/traefik/dynamic_conf.yml:/etc/traefik/dynamic_conf.yml:ro
+      - ~/traefik/traefik.crt:/certs/traefik.crt:ro
+      - ~/traefik/traefik.key:/certs/traefik.key:ro
+    networks:
+      - monitoring-network
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - uptime-data:/app/data
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.uptime.rule=Host(`uptime.local`)
+      - traefik.http.routers.uptime.entrypoints=websecure
+      - traefik.http.routers.uptime.tls=true
+      - traefik.http.services.uptime.loadbalancer.server.port=3001
+    networks:
+      - monitoring-network
+
+volumes:
+  uptime-data:
+
+networks:
+  monitoring-network:
+    driver: bridge
