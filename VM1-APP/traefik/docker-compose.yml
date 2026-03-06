@@ -1,0 +1,32 @@
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      #- --providers.docker.network = web
+      - --entrypoints.websecure.address=:443
+      - --providers.file.filename=/etc/traefik/dynamic_conf.yml
+      - --accesslog=true
+      - --accesslog.filepath=/var/log/traefik/access.log
+      - --log.filepath=/var/log/traefik/traefik.log
+      - --log.level=INFO
+
+    ports:
+      - "8443:443"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./dynamic_conf.yml:/etc/traefik/dynamic_conf.yml:ro
+      - ./traefik.crt:/certs/traefik.crt:ro
+      - ./traefik.key:/certs/traefik.key:ro
+      - ~/logs/traefik:/var/log/traefik
+
+    networks:
+      - web
+
+networks:
+  web:
+    external: true

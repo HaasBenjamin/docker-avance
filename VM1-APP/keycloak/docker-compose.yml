@@ -1,0 +1,67 @@
+services:
+
+  mariadb-kc:
+    image: mariadb:11
+    container_name: mariadb-kc
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${KC_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${KC_DB_NAME}
+      MYSQL_USER: ${KC_DB_USER}
+      MYSQL_PASSWORD: ${KC_DB_PASSWORD}
+    volumes:
+      - kc-db-data:/var/lib/mysql
+      - ~/logs/mariadb:/var/log/mysql
+    command: >
+      --general-log=1
+      --general-log-file=/var/log/mysql/general.log
+      --log-error=/var/log/mysql/error.log
+    networks:
+      - web
+      - kc-internal
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak
+    restart: unless-stopped
+    command: start-dev
+    depends_on:
+      - mariadb-kc
+    environment:
+      KC_DB: mariadb
+      KC_DB_URL: jdbc:mariadb://mariadb-kc:3306/${KC_DB_NAME}
+      KC_DB_USERNAME: ${KC_DB_USER}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+      KEYCLOAK_ADMIN: ${KC_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_LOG: file
+      KC_LOG_FILE: /opt/keycloak/data/log/keycloak.log
+      KC_HOSTNAME: keycloak.local
+    volumes:
+      - kc-data:/opt/keycloak/data
+      - ~/logs/keycloak:/opt/keycloak/data/log
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keycloak.rule=Host(`keycloak.local`)"
+      - "traefik.http.routers.keycloak.entrypoints=websecure"
+      - "traefik.http.routers.keycloak.tls=true"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+      - "traefik.docker.network=web"
+    networks:
+      - web
+      - kc-internal
+
+volumes:
+  kc-db-data:
+  kc-data:
+
+networks:
+  web:
+    external: true
+  kc-internal:
+    driver: bridge
+    internal: true

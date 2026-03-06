@@ -1,0 +1,19 @@
+services:
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.17.0
+    container_name: filebeat
+    restart: unless-stopped
+    user: root
+    entrypoint: ["filebeat", "-e", "--strict.perms=false"]
+
+    extra_hosts:
+      - "logstash.local:host-gateway"
+
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ~/logs:/var/log/services:ro
+      - filebeat-data:/usr/share/filebeat/data
+
+volumes:
+  filebeat-data:

@@ -1,0 +1,79 @@
+services:
+
+  mariadb-wp:
+    image: mariadb:11
+    container_name: mariadb-wp
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${WP_DB_NAME}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+      - ~/logs/mariadb:/var/log/mysql
+    command: >
+      --general-log=1
+      --general-log-file=/var/log/mysql/general.log
+      --log-error=/var/log/mysql/error.log
+    networks:
+      - web
+      - wp-internal
+
+  wordpress:
+    image: wordpress:6-apache
+    container_name: wordpress
+    restart: unless-stopped
+    depends_on:
+      - mariadb-wp
+    extra_hosts:
+      - "keycloak.local:host-gateway"
+    environment:
+      WORDPRESS_DB_HOST: mariadb-wp
+      WORDPRESS_DB_NAME: ${WP_DB_NAME}
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - wp-data:/var/www/html
+      - ~/logs/wordpress:/var/log/apache2
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wordpress.rule=Host(`wordpress.local`)
+      - traefik.http.routers.wordpress.entrypoints=websecure
+      - traefik.http.routers.wordpress.tls=true
+      - traefik.http.services.wordpress.loadbalancer.server.port=80
+    networks:
+      - web
+      - wp-internal
+
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      - mariadb-wp
+    environment:
+      PMA_HOST: mariadb-wp
+      PMA_PORT: 3306
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.pma.rule=Host(`pma.local`)
+      - traefik.http.routers.pma.entrypoints=websecure
+      - traefik.http.routers.pma.tls=true
+      - traefik.http.middlewares.pma-auth.basicauth.users=${PMA_BASIC_AUTH}
+      - traefik.http.routers.pma.middlewares=pma-auth
+      - traefik.http.services.pma.loadbalancer.server.port=80
+    networks:
+      - web
+      - wp-internal
+
+volumes:
+  db-data:
+  wp-data:
+
+networks:
+  web:
+    external: true
+  wp-internal:
+    driver: bridge
+    internal: true
